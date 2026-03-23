@@ -220,6 +220,7 @@
             <label>投標價格 (單股元)</label>
             <input type="number" id="bidPrice" step="0.01">
             <div id="minPriceHint" class="hint"></div>
+            <div id="bidSuggestionHint" class="hint"></div>
         </div>
 
         <div class="form-group">
@@ -372,19 +373,52 @@
             if (idx === "") return;
 
             const row = apiData[idx];
-            // 欄位對應: 最低投標價格(10), 得標手續費率(18), 投標結束日(4)
+            // 欄位對應: 最低投標價格(元) - 10, 得標手續費率(%) - 18, 得標加權平均價格(元) - 23, 實際承銷價格(元) - 24
             const minPrice = parseFloat(row[10].replace(/,/g, ''));
+            const avgPrice = parseFloat(row[23].replace(/,/g, ''));
             const feeRate = parseFloat(row[18]) || 5;
-            const sellPrice = parseFloat(row[24].replace(/,/g, '')); 
+            const sellPrice = parseFloat(row[24].replace(/,/g, ''));
 
-            document.getElementById('bidPrice').value = minPrice;
+            document.getElementById('bidPrice').value = avgPrice || minPrice ||  "";
             document.getElementById('winRate').value = feeRate;
             document.getElementById('minPriceHint').innerText = `* 最低投標價底價：${minPrice} 元`;
-            document.getElementById('dateHint').innerText = `投標截止日：${row[4]}`;
+            document.getElementById('dateHint').innerText = `投標截止日：${row[8]}`;
             document.getElementById('sellPrice').value = sellPrice;
+            updateBidSuggestion(row);
 
             if (detailsOpen) {
                 renderDetailsPanel(row);
+            }
+        }
+
+        function updateBidSuggestion(row) {
+            if (!row) return;
+
+            const minPrice = parseFloat((row[10] || "").replace(/,/g, ''));
+            const underwritingPrice = parseFloat((row[24] || "").replace(/,/g, ''));
+            const winRate = (parseFloat(document.getElementById('winRate').value) || 0) / 100;
+            const procFee = parseFloat(document.getElementById('procFee').value) || 0;
+            const qty = (parseInt(document.getElementById('bidQty').value) || 0) * 1000;
+            const brokerDiscount = (parseFloat(document.getElementById('brokerDiscount').value) || 0) / 100;
+            const suggestionEl = document.getElementById('bidSuggestionHint');
+
+            if (!minPrice || !underwritingPrice || !qty) {
+                suggestionEl.innerText = '';
+                return;
+            }
+
+            const sellDeductRate = 0.001425 * brokerDiscount + 0.003;
+            const maxBidForBreakeven = (underwritingPrice * (1 - sellDeductRate) - procFee / qty) / (1 + winRate);
+            const suggestedBid = Math.max(minPrice, maxBidForBreakeven);
+            const bidPriceEl = document.getElementById('bidPrice');
+
+            // 依保本投標價自動帶入投標價格，保留到小數第二位
+            bidPriceEl.value = suggestedBid.toFixed(2);
+
+            if (maxBidForBreakeven < minPrice) {
+                suggestionEl.innerText = `* 保本投標價：${minPrice.toFixed(2)} 元（依目前費用推估，承銷價 ${underwritingPrice.toFixed(2)} 元可能不足以打平）`;
+            } else {
+                suggestionEl.innerText = `* 保本投標價：約 ${suggestedBid.toFixed(2)} 元（以承銷價 ${underwritingPrice.toFixed(2)} 元作為保本目標）`;
             }
         }
 
@@ -479,7 +513,19 @@
             document.getElementById('resultArea').style.display = 'block';
         }
 
-        window.onload = fetchFromTwse;
+        window.onload = function () {
+            fetchFromTwse();
+
+            const refreshSuggestion = () => {
+                const idx = document.getElementById('stockSelect').value;
+                if (idx === "") return;
+                updateBidSuggestion(apiData[idx]);
+            };
+
+            ['bidQty', 'winRate', 'procFee', 'brokerDiscount'].forEach((id) => {
+                document.getElementById(id).addEventListener('input', refreshSuggestion);
+            });
+        };
     </script>
 
 </body>
