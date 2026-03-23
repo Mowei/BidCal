@@ -86,7 +86,7 @@ func main() {
 	fmt.Println("  按 Ctrl+C 停止")
 	fmt.Println()
 
-	openBrowser("http://" + addr + "/calc.html")
+	openBrowser("http://" + addr + "/index.html")
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
@@ -101,6 +101,6 @@ func openBrowser(u string) {
 		err = exec.Command("xdg-open", u).Start()
 	}
 	if err != nil {
-		log.Printf("無法自動開啟瀏覽器：%v（請手動前往 http://localhost:8080/calc.html）", err)
+		log.Printf("無法自動開啟瀏覽器：%v（請手動前往 http://localhost:8080/index.html）", err)
 	}
 }
