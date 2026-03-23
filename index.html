@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>證交所即時競拍計算機</title>
+    <style>
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: #f4f7f9;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            width: 100%;
+            max-width: 550px;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #003a8c;
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 15px;
+            margin-top: 0;
+        }
+
+        .status {
+            text-align: center;
+            font-size: 0.9em;
+            color: #007bff;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        select,
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        select {
+            background-color: #fffbe6;
+            border: 1px solid #ffe58f;
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: #777;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .result-box {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 6px solid #28a745;
+            display: none;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .highlight {
+            color: #d93025;
+            font-weight: bold;
+        }
+
+        .detail-button {
+            width: auto;
+            margin-top: 0;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            background-color: #1677ff;
+        }
+
+        .detail-button:hover {
+            background-color: #0f5bc4;
+        }
+
+        .calc-button {
+            width: 100%;
+        }
+
+        .detail-panel {
+            margin-top: 10px;
+            padding: 12px;
+            border: 1px solid #d9e6ff;
+            border-radius: 8px;
+            background-color: #f7fbff;
+            display: none;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: 1px dashed #e6eefc;
+            font-size: 0.9rem;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-key {
+            color: #4d5b77;
+            white-space: nowrap;
+        }
+
+        .detail-value {
+            text-align: right;
+            color: #1f2d3d;
+            word-break: break-all;
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            color: #888;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 10px 0 4px;
+        }
+
+        .profit-positive {
+            color: #d93025;
+            font-weight: bold;
+        }
+
+        .profit-negative {
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>股票競拍試算 (API 實時)</h2>
+
+        <div id="apiStatus" class="status">正在連線至證交所...</div>
+
+        <div class="form-group">
+            <div class="label-row">
+                <label>選擇競拍標的</label>
+                <button type="button" class="detail-button" onclick="toggleDetailsPanel()">詳細資訊</button>
+            </div>
+            <select id="stockSelect" onchange="syncApiData()">
+                <option value="">-- 請選擇 --</option>
+            </select>
+            <div id="dateHint" class="hint"></div>
+            <div id="detailPanel" class="detail-panel"></div>
+        </div>
+
+        <div class="form-group">
+            <label>投標價格 (單股元)</label>
+            <input type="number" id="bidPrice" step="0.01">
+            <div id="minPriceHint" class="hint"></div>
+        </div>
+
+        <div class="form-group">
+            <label>投標數量 (張)</label>
+            <input type="number" id="bidQty" value="1" min="1">
+            <div class="hint">得標上限：該標案公開銷售量之 10%</div>
+        </div>
+
+        <div class="flex-row">
+            <div class="form-group" style="flex:1;">
+                <label>保證金 (%)</label>
+                <input type="number" id="depRate" value="50" min="30" max="60">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>處理費 (元)</label>
+                <input type="number" id="procFee" value="400" max="500">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>得標手續費率 (%)</label>
+            <input type="number" id="winRate" value="5" step="0.1" max="5">
+        </div>
+
+        <hr style="border:none;border-top:1px solid #eee;margin:15px 0;">
+
+        <div class="form-group">
+            <label>目標賣出價格 (元/股)</label>
+            <input type="number" id="sellPrice" step="0.01" placeholder="選填，用於計算獲利">
+        </div>
+
+        <div class="form-group">
+            <label>賣出券商手續費折扣 (%)</label>
+            <input type="number" id="brokerDiscount" value="60" min="1" max="100">
+            <div class="hint">標準手續費 0.1425% × 折扣率，最低 20 元/筆</div>
+        </div>
+
+        <button class="calc-button" onclick="runCalc()">計算試算結果</button>
+
+        <div id="resultArea" class="result-box">
+            <div class="row"><span>投標總金額</span><span id="rTotal"></span></div>
+            <div class="row"><span>保證金金額</span><span id="rDep"></span></div>
+            <div class="row"><span>處理費</span><span id="rProc"></span></div>
+            <div class="row highlight"><span>1. 投標應繳首款</span><span id="rInit"></span></div>
+            <hr>
+            <div class="row"><span>得標手續費</span><span id="rWinFee"></span></div>
+            <div class="row highlight"><span>2. 得標應補尾款</span><span id="rFinal"></span></div>
+            <hr>
+            <div class="row" style="border:none; font-weight:bold; font-size:1.1em;">
+                <span>預估總投入成本</span><span id="rAll"></span>
+            </div>
+            <div class="row" style="border:none;">
+                <span>損益平衡賣價 (元/股)</span><span id="rBreakeven" style="font-weight:bold;"></span>
+            </div>
+
+            <div id="profitSection" style="display:none;">
+                <hr>
+                <div class="section-title">出場試算</div>
+                <div class="row"><span>賣出總金額</span><span id="rSellAmt"></span></div>
+                <div class="row"><span>賣出手續費</span><span id="rSellFee"></span></div>
+                <div class="row"><span>證券交易稅 (0.3%)</span><span id="rTax"></span></div>
+                <hr>
+                <div class="row highlight">
+                    <span>損益</span><span id="rProfit"></span>
+                </div>
+                <div class="row" style="border:none;">
+                    <span>報酬率</span><span id="rRoi"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * @typedef {[
+         *   string, // 0  序號
+         *   string, // 1  開標日期
+         *   string, // 2  證券名稱
+         *   string, // 3  證券代號
+         *   string, // 4  發行市場
+         *   string, // 5  發行性質
+         *   string, // 6  競拍方式
+         *   string, // 7  投標開始日
+         *   string, // 8  投標結束日
+         *   string, // 9  競拍數量(張)
+         *   string, // 10 最低投標價格(元)
+         *   string, // 11 最低每標單投標數量(張)
+         *   string, // 12 最高投(得)標數量(張)
+         *   string, // 13 保證金成數(%)
+         *   string, // 14 每一投標單投標處理費(元)
+         *   string, // 15 撥券日期(上市、上櫃日期)
+         *   string, // 16 主辦券商
+         *   string, // 17 得標總金額(元)
+         *   string, // 18 得標手續費率(%)
+         *   string, // 19 總合格件
+         *   string, // 20 合格投標數量(張)
+         *   string, // 21 最低得標價格(元)
+         *   string, // 22 最高得標價格(元)
+         *   string, // 23 得標加權平均價格(元)
+         *   string, // 24 實際承銷價格(元)
+         *   string  // 25 取消競價拍賣(流標或取消)
+         * ]} AuctionRow
+         */
+
+        /** @type {AuctionRow[]} */
+        let apiData = [];
+        let apiFields = [];
+        let detailsOpen = false;
+        const fallbackFields = [
+            "序號", "開標日期", "證券名稱", "證券代號", "發行市場", "發行性質", "競拍方式",
+            "投標開始日", "投標結束日", "競拍數量(張)", "最低投標價格(元)", "最低每標單投標數量(張)",
+            "最高投(得)標數量(張)", "保證金成數(%)", "每一投標單投標處理費(元)", "撥券日期(上市、上櫃日期)",
+            "主辦券商", "得標總金額(元)", "得標手續費率(%)", "總合格件", "合格投標數量(張)",
+            "最低得標價格(元)", "最高得標價格(元)", "得標加權平均價格(元)", "實際承銷價格(元)", "取消競價拍賣(流標或取消)"
+        ];
+
+        // 1. 初始化讀取證交所 API
+        async function fetchFromTwse() {
+            const statusEl = document.getElementById('apiStatus');
+            try {
+                const res = await fetch('https://www.twse.com.tw/rwd/zh/announcement/auction?response=json');
+                const json = await res.json();
+
+                if (json.data && json.data.length > 0) {
+                    apiData = json.data;
+                    apiFields = Array.isArray(json.fields) && json.fields.length > 0 ? json.fields : fallbackFields;
+                    const select = document.getElementById('stockSelect');
+                    apiData.forEach((item, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        const code = item[3] ?? item[1] ?? "";
+                        const name = item[2] ?? "";
+                        option.text = `${code} ${name}`.trim();
+                        select.appendChild(option);
+                    });
+                    statusEl.innerText = "✅ 成功連結證交所資料";
+                    statusEl.style.color = "#28a745";
+                } else {
+                    statusEl.innerText = "目前無進行中的標案";
+                }
+            } catch (err) {
+                statusEl.innerText = "⚠️ API 讀取失敗 (CORS)，請手動輸入";
+                statusEl.style.color = "#ff4d4f";
+            }
+        }
+
+        // 2. 當使用者選擇股票時，同步底價與費率
+        function syncApiData() {
+            const idx = document.getElementById('stockSelect').value;
+            if (idx === "") return;
+
+            const row = apiData[idx];
+            // 欄位對應: 最低投標價格(10), 得標手續費率(18), 投標結束日(4)
+            const minPrice = parseFloat(row[10].replace(/,/g, ''));
+            const feeRate = parseFloat(row[18]) || 5;
+            const sellPrice = parseFloat(row[24].replace(/,/g, '')); 
+
+            document.getElementById('bidPrice').value = minPrice;
+            document.getElementById('winRate').value = feeRate;
+            document.getElementById('minPriceHint').innerText = `* 最低投標價底價：${minPrice} 元`;
+            document.getElementById('dateHint').innerText = `投標截止日：${row[4]}`;
+            document.getElementById('sellPrice').value = sellPrice;
+
+            if (detailsOpen) {
+                renderDetailsPanel(row);
+            }
+        }
+
+        function renderDetailsPanel(row) {
+            const panel = document.getElementById('detailPanel');
+            const fields = apiFields.length > 0 ? apiFields : fallbackFields;
+
+            panel.innerHTML = fields.map((field, index) => {
+                const value = row[index] === "" || row[index] == null ? "-" : row[index];
+                return `<div class="detail-row"><span class="detail-key">${field}</span><span class="detail-value">${value}</span></div>`;
+            }).join('');
+        }
+
+        function toggleDetailsPanel() {
+            const idx = document.getElementById('stockSelect').value;
+            const panel = document.getElementById('detailPanel');
+
+            if (idx === "") {
+                alert("請先選擇一個標的");
+                return;
+            }
+
+            detailsOpen = !detailsOpen;
+            panel.style.display = detailsOpen ? 'block' : 'none';
+
+            if (detailsOpen) {
+                renderDetailsPanel(apiData[idx]);
+            }
+        }
+
+        // 3. 計算邏輯
+        function runCalc() {
+            const price = parseFloat(document.getElementById('bidPrice').value);
+            const qty = parseInt(document.getElementById('bidQty').value) * 1000;
+            const depRate = parseFloat(document.getElementById('depRate').value) / 100;
+            const procFee = parseFloat(document.getElementById('procFee').value);
+            const winRate = parseFloat(document.getElementById('winRate').value) / 100;
+
+            if (!price || !qty) return alert("請輸入正確的價格與數量");
+
+            const totalAmt = price * qty;
+            const deposit = Math.floor(totalAmt * depRate);
+            const initialPay = deposit + procFee;
+            const winFee = Math.floor(totalAmt * winRate);
+            const finalPay = (totalAmt - deposit) + winFee;
+            const allCost = totalAmt + winFee + procFee;
+
+            // 顯示
+            document.getElementById('rTotal').innerText = totalAmt.toLocaleString() + " 元";
+            document.getElementById('rDep').innerText = deposit.toLocaleString() + " 元";
+            document.getElementById('rProc').innerText = procFee.toLocaleString() + " 元";
+            document.getElementById('rInit').innerText = initialPay.toLocaleString() + " 元";
+            document.getElementById('rWinFee').innerText = winFee.toLocaleString() + " 元";
+            document.getElementById('rFinal').innerText = finalPay.toLocaleString() + " 元";
+            document.getElementById('rAll').innerText = allCost.toLocaleString() + " 元";
+
+            // 損益平衡賣價
+            const brokerDiscount = parseFloat(document.getElementById('brokerDiscount').value) / 100;
+            const sellDeductRate = 0.001425 * brokerDiscount + 0.003;
+            const breakevenPrice = allCost / (qty * (1 - sellDeductRate));
+            document.getElementById('rBreakeven').innerText = breakevenPrice.toFixed(2) + " 元";
+
+            // 出場獲利試算
+            const sellPrice = parseFloat(document.getElementById('sellPrice').value);
+            const profitSection = document.getElementById('profitSection');
+
+            if (sellPrice && !isNaN(sellPrice)) {
+                const sellAmt = sellPrice * qty;
+                const sellFee = Math.max(Math.floor(sellAmt * 0.001425 * brokerDiscount), 20);
+                const tax = Math.floor(sellAmt * 0.003);
+                const netReceive = sellAmt - sellFee - tax;
+                const profit = netReceive - allCost;
+                const roi = (profit / allCost * 100).toFixed(2);
+
+                document.getElementById('rSellAmt').innerText = sellAmt.toLocaleString() + " 元";
+                document.getElementById('rSellFee').innerText = sellFee.toLocaleString() + " 元";
+                document.getElementById('rTax').innerText = tax.toLocaleString() + " 元";
+
+                const profitEl = document.getElementById('rProfit');
+                profitEl.innerText = (profit >= 0 ? "+" : "") + Math.round(profit).toLocaleString() + " 元";
+                profitEl.className = profit >= 0 ? 'profit-positive' : 'profit-negative';
+
+                const roiEl = document.getElementById('rRoi');
+                roiEl.innerText = (roi >= 0 ? "+" : "") + roi + " %";
+                roiEl.className = roi >= 0 ? 'profit-positive' : 'profit-negative';
+
+                profitSection.style.display = 'block';
+            } else {
+                profitSection.style.display = 'none';
+            }
+
+            document.getElementById('resultArea').style.display = 'block';
+        }
+
+        window.onload = fetchFromTwse;
+    </script>
+
+</body>
+
+</html>
