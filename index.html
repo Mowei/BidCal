@@ -17,10 +17,29 @@
         .container {
             background: white;
             width: 100%;
-            max-width: 550px;
+            max-width: 980px;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .content-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .left-col {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .right-col {
+            width: 360px;
+            max-width: 100%;
+            align-self: flex-start;
+            position: sticky;
+            top: 16px;
         }
 
         h2 {
@@ -103,12 +122,27 @@
         }
 
         .result-box {
-            margin-top: 20px;
+            margin-top: 0;
             padding: 20px;
             background-color: #f8f9fa;
             border-radius: 8px;
             border-left: 6px solid #28a745;
             display: none;
+        }
+
+        @media (max-width: 900px) {
+            .content-layout {
+                flex-direction: column;
+            }
+
+            .right-col {
+                width: 100%;
+                position: static;
+            }
+
+            .result-box {
+                margin-top: 10px;
+            }
         }
 
         .row {
@@ -194,6 +228,20 @@
             color: #28a745;
             font-weight: bold;
         }
+
+        .fetch-price-button {
+            width: auto;
+            margin-top: 0;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            background-color: #fa8c16;
+        }
+
+        .fetch-price-button:hover {
+            background-color: #d46b08;
+        }
     </style>
 </head>
 
@@ -204,71 +252,79 @@
 
         <div id="apiStatus" class="status">正在連線至證交所...</div>
 
-        <div class="form-group">
-            <div class="label-row">
-                <label>選擇競拍標的</label>
-                <button type="button" class="detail-button" onclick="toggleDetailsPanel()">詳細資訊</button>
+        <div class="content-layout">
+            <div class="left-col">
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>選擇競拍標的</label>
+                        <button type="button" class="detail-button" onclick="toggleDetailsPanel()">詳細資訊</button>
+                    </div>
+                    <select id="stockSelect" onchange="syncApiData()">
+                        <option value="">-- 請選擇 --</option>
+                    </select>
+                    <div id="dateHint" class="hint"></div>
+                    <div id="detailPanel" class="detail-panel"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>目標報酬率 (%)</label>
+                    <input type="number" id="targetRoi" value="10" step="0.1" min="0">
+                    <div class="hint">用於反推保本投標價（含目標報酬率）</div>
+                </div>
+
+                <div class="form-group">
+                    <label>投標價格 (單股元)</label>
+                    <input type="number" id="bidPrice" step="0.01">
+                    <div id="minPriceHint" class="hint"></div>
+                    <div id="lowestWinPriceHint" class="hint"></div>
+                    <div id="avgPriceHint" class="hint"></div>
+                    <div id="bidSuggestionHint" class="hint"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>投標數量 (張)</label>
+                    <input type="number" id="bidQty" value="1" min="1">
+                    <div class="hint">得標上限：該標案公開銷售量之 10%</div>
+                </div>
+
+                <div class="flex-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>保證金 (%)</label>
+                        <input type="number" id="depRate" value="50" min="30" max="60">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>處理費 (元)</label>
+                        <input type="number" id="procFee" value="400" max="500">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>得標手續費率 (%)</label>
+                    <input type="number" id="winRate" value="5" step="0.1" max="5">
+                </div>
+
+                <hr style="border:none;border-top:1px solid #eee;margin:15px 0;">
+
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>目標賣出價格 (元/股)</label>
+                        <button type="button" class="fetch-price-button" onclick="fetchCurrentPrice()">取得現價</button>
+                    </div>
+                    <input type="number" id="sellPrice" step="0.01" placeholder="選填，用於計算獲利">
+                    <div id="fetchPriceHint" class="hint"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>賣出券商手續費折扣 (%)</label>
+                    <input type="number" id="brokerDiscount" value="60" min="1" max="100">
+                    <div class="hint">標準手續費 0.1425% × 折扣率，最低 20 元/筆</div>
+                </div>
+
             </div>
-            <select id="stockSelect" onchange="syncApiData()">
-                <option value="">-- 請選擇 --</option>
-            </select>
-            <div id="dateHint" class="hint"></div>
-            <div id="detailPanel" class="detail-panel"></div>
-        </div>
 
-        <div class="form-group">
-            <label>目標報酬率 (%)</label>
-            <input type="number" id="targetRoi" value="10" step="0.1" min="0">
-            <div class="hint">用於反推保本投標價（含目標報酬率）</div>
-        </div>
-
-        <div class="form-group">
-            <label>投標價格 (單股元)</label>
-            <input type="number" id="bidPrice" step="0.01">
-            <div id="minPriceHint" class="hint"></div>
-            <div id="lowestWinPriceHint" class="hint"></div>
-            <div id="avgPriceHint" class="hint"></div>
-            <div id="bidSuggestionHint" class="hint"></div>
-        </div>
-
-        <div class="form-group">
-            <label>投標數量 (張)</label>
-            <input type="number" id="bidQty" value="1" min="1">
-            <div class="hint">得標上限：該標案公開銷售量之 10%</div>
-        </div>
-
-        <div class="flex-row">
-            <div class="form-group" style="flex:1;">
-                <label>保證金 (%)</label>
-                <input type="number" id="depRate" value="50" min="30" max="60">
-            </div>
-            <div class="form-group" style="flex:1;">
-                <label>處理費 (元)</label>
-                <input type="number" id="procFee" value="400" max="500">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label>得標手續費率 (%)</label>
-            <input type="number" id="winRate" value="5" step="0.1" max="5">
-        </div>
-
-        <hr style="border:none;border-top:1px solid #eee;margin:15px 0;">
-
-        <div class="form-group">
-            <label>目標賣出價格 (元/股)</label>
-            <input type="number" id="sellPrice" step="0.01" placeholder="選填，用於計算獲利">
-        </div>
-
-        <div class="form-group">
-            <label>賣出券商手續費折扣 (%)</label>
-            <input type="number" id="brokerDiscount" value="60" min="1" max="100">
-            <div class="hint">標準手續費 0.1425% × 折扣率，最低 20 元/筆</div>
-        </div>
-
-        <button class="calc-button" onclick="runCalc()">計算試算結果</button>
-
-        <div id="resultArea" class="result-box">
+            <div class="right-col">
+                <button class="calc-button" onclick="runCalc()">計算試算結果</button>
+                <div id="resultArea" class="result-box">
             <div class="row"><span>投標總金額</span><span id="rTotal"></span></div>
             <div class="row"><span>保證金金額</span><span id="rDep"></span></div>
             <div class="row"><span>處理費</span><span id="rProc"></span></div>
@@ -296,6 +352,8 @@
                 </div>
                 <div class="row" style="border:none;">
                     <span>報酬率</span><span id="rRoi"></span>
+                </div>
+            </div>
                 </div>
             </div>
         </div>
@@ -349,7 +407,7 @@
         async function fetchFromTwse() {
             const statusEl = document.getElementById('apiStatus');
             try {
-                const res = await fetch('https://www.twse.com.tw/rwd/zh/announcement/auction?response=json');
+                const res = await fetch('/proxy/auction');
                 const json = await res.json();
 
                 if (json.data && json.data.length > 0) {
@@ -370,7 +428,7 @@
                     statusEl.innerText = "目前無進行中的標案";
                 }
             } catch (err) {
-                statusEl.innerText = "⚠️ API 讀取失敗 (CORS)，請手動輸入";
+                statusEl.innerText = "⚠️ API 讀取失敗，請確認伺服器是否正在執行";
                 statusEl.style.color = "#ff4d4f";
             }
         }
@@ -379,6 +437,8 @@
         function syncApiData() {
             const idx = document.getElementById('stockSelect').value;
             if (idx === "") return;
+
+            clearCalcResult();
 
             const row = apiData[idx];
             // 欄位對應: 最低投標價格(元) - 10, 得標手續費率(%) - 18, 得標加權平均價格(元) - 23, 實際承銷價格(元) - 24
@@ -402,11 +462,30 @@
             }
         }
 
+        function clearCalcResult() {
+            [
+                'rTotal', 'rDep', 'rProc', 'rInit', 'rWinFee', 'rFinal', 'rAll', 'rBreakeven',
+                'rSellAmt', 'rSellFee', 'rTax', 'rProfit', 'rRoi'
+            ].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerText = '';
+                    el.className = '';
+                }
+            });
+
+            document.getElementById('profitSection').style.display = 'none';
+            document.getElementById('resultArea').style.display = 'none';
+            document.getElementById('fetchPriceHint').innerText = '';
+        }
+
         function updateBidSuggestion(row) {
             if (!row) return;
 
             const minPrice = parseFloat((row[10] || "").replace(/,/g, ''));
             const underwritingPrice = parseFloat((row[24] || "").replace(/,/g, ''));
+            const manualSellPrice = parseFloat(document.getElementById('sellPrice').value);
+            const targetSellPrice = !isNaN(manualSellPrice) && manualSellPrice > 0 ? manualSellPrice : underwritingPrice;
             const winRate = (parseFloat(document.getElementById('winRate').value) || 0) / 100;
             const procFee = parseFloat(document.getElementById('procFee').value) || 0;
             const qty = (parseInt(document.getElementById('bidQty').value) || 0) * 1000;
@@ -414,13 +493,13 @@
             const targetRoi = (parseFloat(document.getElementById('targetRoi').value) || 0) / 100;
             const suggestionEl = document.getElementById('bidSuggestionHint');
 
-            if (!minPrice || !underwritingPrice || !qty) {
+            if (!minPrice || !targetSellPrice || !qty) {
                 suggestionEl.innerText = '';
                 return;
             }
 
             const sellDeductRate = 0.001425 * brokerDiscount + 0.003;
-            const netReceivePerShare = underwritingPrice * (1 - sellDeductRate);
+            const netReceivePerShare = targetSellPrice * (1 - sellDeductRate);
             const maxBidForTarget = (netReceivePerShare / (1 + targetRoi) - procFee / qty) / (1 + winRate);
             const suggestedBid = Math.max(minPrice, maxBidForTarget);
             const bidPriceEl = document.getElementById('bidPrice');
@@ -429,9 +508,55 @@
             bidPriceEl.value = suggestedBid.toFixed(2);
 
             if (maxBidForTarget < minPrice) {
-                suggestionEl.innerText = `* 保本投標價：${minPrice.toFixed(2)} 元（依目前費用推估，承銷價 ${underwritingPrice.toFixed(2)} 元下無法達成目標報酬率 ${(targetRoi * 100).toFixed(2)}%）`;
+                suggestionEl.innerText = `* 保本投標價：${minPrice.toFixed(2)} 元（依目前費用推估，目標賣出價 ${targetSellPrice.toFixed(2)} 元下無法達成目標報酬率 ${(targetRoi * 100).toFixed(2)}%）`;
             } else {
-                suggestionEl.innerText = `* 保本投標價：約 ${suggestedBid.toFixed(2)} 元（以承銷價 ${underwritingPrice.toFixed(2)} 元、目標報酬率 ${(targetRoi * 100).toFixed(2)}% 反推）`;
+                suggestionEl.innerText = `* 保本投標價：約 ${suggestedBid.toFixed(2)} 元（以目標賣出價 ${targetSellPrice.toFixed(2)} 元、目標報酬率 ${(targetRoi * 100).toFixed(2)}% 反推）`;
+            }
+        }
+
+        async function fetchCurrentPrice() {
+            const idx = document.getElementById('stockSelect').value;
+            if (idx === "") { alert('請先選擇競拍標的'); return; }
+
+            const row = apiData[idx];
+            const stockCode = row[3];
+            const hintEl = document.getElementById('fetchPriceHint');
+
+            hintEl.style.color = '#007bff';
+            hintEl.innerText = '查詢中...';
+
+            // 取今日日期，若查無資料自動退回上個月
+
+            const tryFetch = async () => {
+                const res = await fetch(`/proxy/stockday?stockNo=${encodeURIComponent(stockCode)}`);
+                return res.json();
+            };
+
+            try {
+                let json = await tryFetch();
+
+                if (json.data ) {
+                    // fields: 日期(0) 成交股數(1) 成交金額(2) 開盤價(3) 最高價(4) 最低價(5) 收盤價(6) 漲跌價差(7) 成交筆數(8)
+                    const lastRow = json.data.lowestPrice;
+                    const closePrice = json.data.flatPlatePrice;
+                    const tradeDate = json.data.tradeDate;
+
+                    if (!isNaN(closePrice) && closePrice > 0) {
+                        document.getElementById('sellPrice').value = closePrice;
+                        hintEl.style.color = '#28a745';
+                        hintEl.innerText = `✅ 收盤價 ${closePrice} 元（${tradeDate}）`;
+                        document.getElementById('sellPrice').dispatchEvent(new Event('input'));
+                    } else {
+                        hintEl.style.color = '#fa8c16';
+                        hintEl.innerText = '⚠️ 無法解析收盤價資料';
+                    }
+                } else {
+                    hintEl.style.color = '#ff4d4f';
+                    hintEl.innerText = '⚠️ 查無股票資料，該標的可能尚未上市';
+                }
+            } catch {
+                hintEl.style.color = '#ff4d4f';
+                hintEl.innerText = '⚠️ 查詢失敗，請確認伺服器是否正在執行';
             }
         }
 
@@ -535,7 +660,7 @@
                 updateBidSuggestion(apiData[idx]);
             };
 
-            ['bidQty', 'winRate', 'procFee', 'brokerDiscount', 'targetRoi'].forEach((id) => {
+            ['bidQty', 'winRate', 'procFee', 'brokerDiscount', 'targetRoi', 'sellPrice'].forEach((id) => {
                 document.getElementById(id).addEventListener('input', refreshSuggestion);
             });
         };
