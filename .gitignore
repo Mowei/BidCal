@@ -1,0 +1,38 @@
+# 二進制文件
+*.exe
+*.dll
+*.so
+*.o
+*.a
+auction-monitor
+
+# Go 相關
+/bin/
+/obj/
+*.test
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 敏感信息
+.env
+.env.local
+.env.*.local
+
+# 日誌
+*.log
+monitor-*.log
+
+# 臨時文件
+tmp/
+temp/
+
+# 構建輸出
+dist/
+build/

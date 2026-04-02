@@ -1,0 +1,43 @@
+name: 競拍計算機 - 每日監控
+
+on:
+  schedule:
+    # 每天上午 9 點執行
+    - cron: '0 1 * * *'  # UTC 時間（台灣時間 +8，所以 UTC 1:00 = 台灣 9:00）
+  workflow_dispatch:     # 手動觸發
+
+jobs:
+  auction-monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 簽出代碼
+        uses: actions/checkout@v4
+      
+      - name: 設置 Go 環境
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: 編譯監控程序
+        run: go build -o auction-monitor ./cmd/monitor/main.go
+      
+      - name: 執行監控檢查
+        env:
+          TARGET_ROI: '30'              # 目標報酬率：30%
+          MIN_PROFIT: '20000'           # 最小淨利潤：2 萬元（已扣除手續費）
+          COMMISSION_DISCOUNT: '0.6'    # 手續費折扣率：60%
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+        run: ./auction-monitor
+      
+      - name: 上傳日誌
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: monitor-logs
+          path: monitor-*.log
+          retention-days: 7
