@@ -8,7 +8,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"net/smtp"
 	"os"
 	"strconv"
 	"strings"
@@ -36,11 +35,7 @@ type MonitorConfig struct {
 	TargetROI          float64
 	MinProfit          float64
 	CommissionDiscount float64 // 手續費折扣率 (0.6 = 60%)
-	EmailTo            string
-	EmailFrom          string
-	EmailPass          string
-	SMTPServer         string
-	SMTPPort           string
+	DiscordWebhook     string
 }
 
 type AuctionResult struct {
@@ -129,8 +124,8 @@ func main() {
 
 	// 發送通知
 	if len(results) > 0 {
-		log.Printf("\n📧 發送通知：%d 個符合條件的機會", len(results))
-		sendEmailNotification(results, config)
+		log.Printf("\n� 發送通知：%d 個符合條件的機會", len(results))
+		sendDiscordNotification(results, config)
 		log.Println("✓ 通知已發送")
 	} else {
 		log.Println("✗ 無符合目標報酬的機會")
@@ -141,25 +136,12 @@ func main() {
 }
 
 func loadConfig() MonitorConfig {
-	config := MonitorConfig{
+	return MonitorConfig{
 		TargetROI:          parseFloat(os.Getenv("TARGET_ROI"), 30),
 		MinProfit:          parseFloat(os.Getenv("MIN_PROFIT"), 20000),
 		CommissionDiscount: parseFloat(os.Getenv("COMMISSION_DISCOUNT"), 0.6),
-		EmailTo:            os.Getenv("EMAIL_TO"),
-		EmailFrom:          os.Getenv("EMAIL_FROM"),
-		EmailPass:          os.Getenv("EMAIL_PASSWORD"),
-		SMTPServer:         os.Getenv("SMTP_SERVER"),
-		SMTPPort:           os.Getenv("SMTP_PORT"),
+		DiscordWebhook:     os.Getenv("DISCORD_WEBHOOK"),
 	}
-
-	if config.SMTPServer == "" {
-		config.SMTPServer = "smtp.gmail.com"
-	}
-	if config.SMTPPort == "" {
-		config.SMTPPort = "587"
-	}
-
-	return config
 }
 
 func parseFloat(s string, defaultVal float64) float64 {
@@ -336,115 +318,87 @@ func fetchStockPrice(stockCode string) float64 {
 	return -1
 }
 
-func sendEmailNotification(results []AuctionResult, config MonitorConfig) error {
-	if config.EmailTo == "" || config.EmailFrom == "" || config.EmailPass == "" {
-		log.Println("⚠ Email 配置不完整，跳過發送")
+type discordField struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline"`
+}
+
+type discordEmbed struct {
+	Title  string         `json:"title"`
+	Color  int            `json:"color"`
+	Fields []discordField `json:"fields"`
+	Footer struct {
+		Text string `json:"text"`
+	} `json:"footer"`
+}
+
+type discordPayload struct {
+	Content string         `json:"content"`
+	Embeds  []discordEmbed `json:"embeds"`
+}
+
+func sendDiscordNotification(results []AuctionResult, config MonitorConfig) error {
+	if config.DiscordWebhook == "" {
+		log.Println("⚠ DISCORD_WEBHOOK 未設定，跳過發送")
 		return nil
 	}
 
-	// 建立郵件內容
-	subject := fmt.Sprintf("競拍監控提醒 - 發現 %d 個符合條件的機會", len(results))
-	body := buildEmailBody(results)
+	// Discord 每次最多 10 個 embeds，分批發送
+	const batchSize = 10
+	for i := 0; i < len(results); i += batchSize {
+		end := i + batchSize
+		if end > len(results) {
+			end = len(results)
+		}
+		batch := results[i:end]
 
-	// 發送郵件
-	auth := smtp.PlainAuth("", config.EmailFrom, config.EmailPass, config.SMTPServer)
-	addr := fmt.Sprintf("%s:%s", config.SMTPServer, config.SMTPPort)
+		embeds := make([]discordEmbed, 0, len(batch))
+		for _, r := range batch {
+			grossProfit := (r.CurrentPrice - r.RecommendedPrice) * r.Quantity * 1000
+			embed := discordEmbed{
+				Title: fmt.Sprintf("%s（%s）", r.StockName, r.StockCode),
+				Color: 3066993, // 綠色
+				Fields: []discordField{
+					{Name: "現價", Value: fmt.Sprintf("¥%.2f", r.CurrentPrice), Inline: true},
+					{Name: "推薦投標價", Value: fmt.Sprintf("¥%.2f", r.RecommendedPrice), Inline: true},
+					{Name: "投標數量", Value: fmt.Sprintf("%.0f 張", r.Quantity), Inline: true},
+					{Name: "毛利潤", Value: fmt.Sprintf("¥%.0f", grossProfit), Inline: true},
+					{Name: "賣出手續費", Value: fmt.Sprintf("¥%.0f", r.SellCommission), Inline: true},
+					{Name: "證券交易稅", Value: fmt.Sprintf("¥%.0f", r.TransactionTax), Inline: true},
+					{Name: "得標手續費", Value: fmt.Sprintf("¥%.0f", r.AwardCommission), Inline: true},
+					{Name: "投標處理費", Value: fmt.Sprintf("¥%.0f", r.BidProcessingFee), Inline: true},
+					{Name: "淨利潤", Value: fmt.Sprintf("**¥%.0f**", r.NetProfit), Inline: true},
+				},
+			}
+			embed.Footer.Text = time.Now().Format("2006/01/02 15:04:05")
+			embeds = append(embeds, embed)
+		}
 
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		config.EmailFrom, config.EmailTo, subject, body)
+		content := ""
+		if i == 0 {
+			content = fmt.Sprintf("📊 **競拍投資機會提醒** — 發現 **%d** 個符合條件的機會", len(results))
+		}
 
-	err := smtp.SendMail(addr, auth, config.EmailFrom, []string{config.EmailTo}, []byte(msg))
-	if err != nil {
-		log.Printf("❌ Email 發送失敗: %v\n", err)
-		return err
+		payload := discordPayload{Content: content, Embeds: embeds}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			log.Printf("❌ Discord payload 序列化失敗: %v\n", err)
+			return err
+		}
+
+		resp, err := httpClient.Post(config.DiscordWebhook, "application/json", bytes.NewReader(body))
+		if err != nil {
+			log.Printf("❌ Discord 通知發送失敗: %v\n", err)
+			return err
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			log.Printf("❌ Discord 回應異常: HTTP %d\n", resp.StatusCode)
+			return fmt.Errorf("discord webhook returned status %d", resp.StatusCode)
+		}
 	}
 
 	return nil
-}
-
-func buildEmailBody(results []AuctionResult) string {
-	var buf bytes.Buffer
-
-	buf.WriteString(`<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; background: #f5f5f5; }
-        .container { max-width: 600px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; }
-        .header { background: #2c3e50; color: white; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-        .opportunity { border: 1px solid #ecf0f1; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
-        .stock-code { font-weight: bold; color: #e74c3c; }
-        .price-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
-        .price-item { background: #ecf0f1; padding: 10px; border-radius: 3px; }
-        .label { color: #7f8c8d; font-size: 12px; }
-        .value { font-weight: bold; font-size: 14px; }
-        .footer { color: #7f8c8d; font-size: 12px; margin-top: 20px; border-top: 1px solid #ecf0f1; padding-top: 10px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h2>📊 競拍投資機會提醒</h2>
-        </div>
-`)
-
-	for _, result := range results {
-		buf.WriteString(fmt.Sprintf(`
-        <div class="opportunity">
-            <div><span class="stock-code">%s</span> - %s</div>
-            <div class="price-info">
-                <div class="price-item">
-                    <div class="label">現價</div>
-                    <div class="value">¥%.2f</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">推薦投標價</div>
-                    <div class="value">¥%.2f</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">投標數量</div>
-                    <div class="value">%.0f 張</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">毛利潤</div>
-                    <div class="value" style="color: #27ae60;">¥%.0f</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">賣出手續費</div>
-                    <div class="value" style="color: #e74c3c;">¥%.0f</div>
-                </div>
-				<div class="price-item">
-					<div class="label">證券交易稅</div>
-					<div class="value" style="color: #e74c3c;">¥%.0f</div>
-				</div>
-                <div class="price-item">
-                    <div class="label">得標手續費</div>
-                    <div class="value" style="color: #e74c3c;">¥%.0f</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">投標處理費</div>
-                    <div class="value" style="color: #e74c3c;">¥%.0f</div>
-                </div>
-                <div class="price-item">
-                    <div class="label">淨利潤</div>
-                    <div class="value" style="color: #2980b9; font-weight: bold; font-size: 16px;">¥%.0f</div>
-                </div>
-            </div>
-        </div>
-`, result.StockCode, result.StockName, result.CurrentPrice, result.RecommendedPrice, result.Quantity, (result.CurrentPrice-result.RecommendedPrice)*result.Quantity*1000, result.SellCommission, result.TransactionTax, result.AwardCommission, result.BidProcessingFee, result.NetProfit))
-	}
-
-	buf.WriteString(`
-        <div class="footer">
-            <p>📌 此通知由自動監控系統產生 | `)
-	buf.WriteString(time.Now().Format("2006/01/02 15:04:05"))
-	buf.WriteString(`</p>
-        </div>
-    </div>
-</body>
-</html>
-`)
-
-	return buf.String()
 }

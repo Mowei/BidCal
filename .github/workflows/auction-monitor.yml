@@ -27,11 +27,7 @@ jobs:
           TARGET_ROI: '30'              # 目標報酬率：30%
           MIN_PROFIT: '20000'           # 最小淨利潤：2 萬元（已扣除手續費）
           COMMISSION_DISCOUNT: '0.6'    # 手續費折扣率：60%
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: ./auction-monitor
       
       - name: 上傳日誌
