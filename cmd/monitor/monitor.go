@@ -42,6 +42,7 @@ type AuctionResult struct {
 	StockCode        string
 	StockName        string
 	IssueType        string // 發行性質
+	LeadBroker       string // 主辦券商
 	EndDate          string // 投標結束日 2006/01/02
 	IsReminder       bool   // 是否為截止提醒
 	CurrentPrice     float64
@@ -255,6 +256,7 @@ func analyzeAuction(auction map[string]string, config MonitorConfig) *AuctionRes
 	stockCode := auction["證券代號"]
 	stockName := auction["證券名稱"]
 	issueType := auction["發行性質"]
+	leadBroker := auction["主辦券商"]
 	endDate := auction["投標結束日"]
 	minBidStr := strings.TrimSpace(auction["最低投標價格(元)"])
 	minQuantityStr := strings.TrimSpace(auction["最低每標單投標數量(張)"])
@@ -294,6 +296,7 @@ func analyzeAuction(auction map[string]string, config MonitorConfig) *AuctionRes
 		StockCode:        stockCode,
 		StockName:        stockName,
 		IssueType:        issueType,
+		LeadBroker:       leadBroker,
 		EndDate:          endDate,
 		CurrentPrice:     currentPrice,
 		MinBidPrice:      minBid,
@@ -420,6 +423,7 @@ func sendDiscordNotification(results []AuctionResult, config MonitorConfig) erro
 				Color: 3066993, // 綠色
 				Fields: []discordField{
 					{Name: "發行性質", Value: r.IssueType, Inline: true},
+					{Name: "主辦券商", Value: r.LeadBroker, Inline: true},
 					{Name: "現價", Value: fmt.Sprintf("¥%.2f", r.CurrentPrice), Inline: true},
 					{Name: "推薦投標價", Value: fmt.Sprintf("¥%.2f", r.RecommendedPrice), Inline: true},
 					{Name: "投標數量", Value: fmt.Sprintf("%.0f 張", r.Quantity), Inline: true},
