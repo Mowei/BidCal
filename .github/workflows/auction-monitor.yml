@@ -29,11 +29,3 @@ jobs:
           COMMISSION_DISCOUNT: '0.6'    # 手續費折扣率：60%
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: ./auction-monitor
-      
-      - name: 上傳日誌
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: monitor-logs
-          path: monitor-*.log
-          retention-days: 7
