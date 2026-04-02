@@ -1,0 +1,39 @@
+name: 編譯監控程序
+
+on:
+  push:
+    paths:
+      - 'cmd/monitor/**.go'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:     # 手動觸發
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 簽出代碼
+        uses: actions/checkout@v4
+
+      - name: 設置 Go 環境
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: 快取 Go 模組
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: 編譯監控程序
+        run: go build -o bin/auction-monitor ./cmd/monitor/
+
+      - name: Commit 編譯產物到 repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bin/auction-monitor
+          git diff --cached --quiet || git commit -m "ci: update auction-monitor binary"
+          git push

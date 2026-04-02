@@ -7,25 +7,18 @@ on:
   workflow_dispatch:     # 手動觸發
 
 jobs:
-  auction-monitor:
+  run:
     runs-on: ubuntu-latest
-    
     steps:
       - name: 簽出代碼
         uses: actions/checkout@v4
-      
-      - name: 設置 Go 環境
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-      
-      - name: 編譯監控程序
-        run: go build -o auction-monitor ./cmd/monitor/main.go
-      
+
       - name: 執行監控檢查
         env:
           TARGET_ROI: '30'              # 目標報酬率：30%
           MIN_PROFIT: '20000'           # 最小淨利潤：2 萬元（已扣除手續費）
           COMMISSION_DISCOUNT: '0.6'    # 手續費折扣率：60%
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: ./auction-monitor
+        run: |
+          chmod +x ./bin/auction-monitor
+          ./bin/auction-monitor

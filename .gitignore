@@ -7,10 +7,13 @@
 auction-monitor
 
 # Go 相關
-/bin/
 /obj/
 *.test
 *.out
+
+# 編譯產物（bin/ 由 CI 管理）
+/bin/*
+!/bin/auction-monitor
 
 # IDE
 .vscode/
