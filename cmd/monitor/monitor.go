@@ -42,6 +42,8 @@ type AuctionResult struct {
 	StockCode        string
 	StockName        string
 	IssueType        string // 發行性質
+	EndDate          string // 投標結束日 2006/01/02
+	IsReminder       bool   // 是否為截止提醒
 	CurrentPrice     float64
 	MinBidPrice      float64
 	Quantity         float64 // 投標數量（張）
@@ -53,6 +55,32 @@ type AuctionResult struct {
 	NetProfit        float64 // 淨利潤
 	Recommendation   string
 	RejectReason     string // 非空表示不符合條件
+}
+
+const notifiedFile = "notified.json"
+
+type notifiedEntry struct {
+	EndDate      string `json:"end_date"`      // 投標結束日 2006/01/02
+	ReminderSent bool   `json:"reminder_sent"` // 截止前一天提醒是否已送出
+}
+
+// loadNotified 讀取已通知清單
+func loadNotified() map[string]notifiedEntry {
+	data, err := os.ReadFile(notifiedFile)
+	if err != nil {
+		return map[string]notifiedEntry{}
+	}
+	var entries map[string]notifiedEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return map[string]notifiedEntry{}
+	}
+	return entries
+}
+
+// saveNotified 將已通知清單寫回 notified.json
+func saveNotified(notified map[string]notifiedEntry) {
+	data, _ := json.MarshalIndent(notified, "", "  ")
+	_ = os.WriteFile(notifiedFile, data, 0644)
 }
 
 var httpClient = &http.Client{
@@ -79,6 +107,12 @@ func main() {
 	config := loadConfig()
 	log.Printf("配置 - 目標報酬率: %.0f%%, 最小損益: ¥%.0f\n", config.TargetROI, config.MinProfit)
 
+	// 載入已通知清單
+	notified := loadNotified()
+	log.Printf("已通知標的數: %d\n", len(notified))
+
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006/01/02")
+
 	// 取得拍賣清單
 	auctions := fetchAuctions()
 	if len(auctions) == 0 {
@@ -101,6 +135,17 @@ func main() {
 		}
 
 		if result.RejectReason == "" {
+			entry, alreadyNotified := notified[result.StockCode]
+			if alreadyNotified {
+				// 結束前一天且尚未發過截止提醒
+				if result.EndDate == tomorrow && !entry.ReminderSent {
+					result.IsReminder = true
+					log.Printf("⏰ %s (%s) [%s]: 截止提醒\n", result.StockName, result.StockCode, market)
+				} else {
+					log.Printf("⏭ %s (%s) [%s]: 已通知過，跳過\n", result.StockName, result.StockCode, market)
+					continue
+				}
+			}
 			results = append(results, *result)
 			log.Printf("✓ %s (%s) [%s]: 投標價 ¥%.2f，淨利 ¥%.0f\n",
 				result.StockName, result.StockCode, market, result.RecommendedPrice, result.NetProfit)
@@ -125,9 +170,18 @@ func main() {
 
 	// 發送通知
 	if len(results) > 0 {
-		log.Printf("\n� 發送通知：%d 個符合條件的機會", len(results))
+		log.Printf("\n📢 發送通知：%d 個符合條件的機會", len(results))
 		sendDiscordNotification(results, config)
-		log.Println("✓ 通知已發送")
+		for _, r := range results {
+			entry := notified[r.StockCode]
+			entry.EndDate = r.EndDate
+			if r.IsReminder {
+				entry.ReminderSent = true
+			}
+			notified[r.StockCode] = entry
+		}
+		saveNotified(notified)
+		log.Println("✓ 通知已發送，已更新 notified.json")
 	} else {
 		log.Println("✗ 無符合目標報酬的機會")
 	}
@@ -201,6 +255,7 @@ func analyzeAuction(auction map[string]string, config MonitorConfig) *AuctionRes
 	stockCode := auction["證券代號"]
 	stockName := auction["證券名稱"]
 	issueType := auction["發行性質"]
+	endDate := auction["投標結束日"]
 	minBidStr := strings.TrimSpace(auction["最低投標價格(元)"])
 	minQuantityStr := strings.TrimSpace(auction["最低每標單投標數量(張)"])
 	processingFeeStr := strings.TrimSpace(auction["每一投標單投標處理費(元)"])
@@ -239,6 +294,7 @@ func analyzeAuction(auction map[string]string, config MonitorConfig) *AuctionRes
 		StockCode:        stockCode,
 		StockName:        stockName,
 		IssueType:        issueType,
+		EndDate:          endDate,
 		CurrentPrice:     currentPrice,
 		MinBidPrice:      minBid,
 		Quantity:         totalQuantity,
@@ -381,7 +437,23 @@ func sendDiscordNotification(results []AuctionResult, config MonitorConfig) erro
 
 		content := ""
 		if i == 0 {
-			content = fmt.Sprintf("📊 **競拍投資機會提醒** — 發現 **%d** 個符合條件的機會", len(results))
+			reminderCount := 0
+			newCount := 0
+			for _, r := range results {
+				if r.IsReminder {
+					reminderCount++
+				} else {
+					newCount++
+				}
+			}
+			parts := []string{}
+			if newCount > 0 {
+				parts = append(parts, fmt.Sprintf("**%d** 個新機會", newCount))
+			}
+			if reminderCount > 0 {
+				parts = append(parts, fmt.Sprintf("**%d** 個明日截止提醒", reminderCount))
+			}
+			content = "📊 **競拍投資機會提醒** — " + strings.Join(parts, "、")
 		}
 
 		payload := discordPayload{Content: content, Embeds: embeds}

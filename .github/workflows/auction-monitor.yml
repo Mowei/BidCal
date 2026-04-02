@@ -9,6 +9,8 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: 簽出代碼
         uses: actions/checkout@v4
@@ -22,3 +24,11 @@ jobs:
         run: |
           chmod +x ./bin/auction-monitor
           ./bin/auction-monitor
+
+      - name: 更新已通知清單
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add notified.json
+          git diff --cached --quiet || git commit -m "ci: update notified.json"
+          git push
