@@ -137,7 +137,7 @@ schedule:
 
 ### ❓ 如何只監控特定股票？
 
-編輯 `cmd/monitor/main.go` 的 `analyzeAuction` 函數，添加股票代號篩選：
+編輯 `monitor.go` 的 `analyzeAuction` 函數，添加股票代號篩選：
 
 ```go
 // 在 fetchAuctions() 後添加
@@ -207,7 +207,7 @@ if auction["證券代號"] != "2330" {  // 只監控台積電
 
 ### 同時發送 Discord 通知
 
-在 `cmd/monitor/main.go` 的 `sendEmailNotification` 後添加：
+在 `monitor.go` 的 `sendEmailNotification` 後添加：
 
 ```go
 if discordWebhook := os.Getenv("DISCORD_WEBHOOK"); discordWebhook != "" {

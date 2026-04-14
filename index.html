@@ -407,7 +407,7 @@
         async function fetchFromTwse() {
             const statusEl = document.getElementById('apiStatus');
             try {
-                const res = await fetch('/proxy/auction');
+                const res = await fetch('https://www.twse.com.tw/rwd/zh/announcement/auction?response=json');
                 const json = await res.json();
 
                 if (json.data && json.data.length > 0) {
