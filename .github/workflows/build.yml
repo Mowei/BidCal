@@ -3,7 +3,7 @@ name: 編譯監控程序
 on:
   push:
     paths:
-      - 'cmd/monitor/**.go'
+      - 'monitor.go'
       - 'go.mod'
       - 'go.sum'
   workflow_dispatch:     # 手動觸發
@@ -30,7 +30,7 @@ jobs:
           restore-keys: ${{ runner.os }}-go-
 
       - name: 編譯監控程序
-        run: go build -o bin/auction-monitor ./cmd/monitor/
+        run: go build -o bin/auction-monitor ./monitor.go
 
       - name: Commit 編譯產物到 repo
         run: |
