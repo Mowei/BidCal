@@ -3,6 +3,10 @@
     "end_date": "2026/04/22",
     "reminder_sent": true
   },
+  "6983": {
+    "end_date": "2026/05/12",
+    "reminder_sent": false
+  },
   "7768": {
     "end_date": "2026/04/23",
     "reminder_sent": false
