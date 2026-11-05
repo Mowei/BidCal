@@ -9,7 +9,7 @@
   },
   "4565": {
     "end_date": "2026/11/06",
-    "reminder_sent": false
+    "reminder_sent": true
   },
   "6467": {
     "end_date": "2026/10/06",
@@ -77,6 +77,6 @@
   },
   "8058": {
     "end_date": "2026/11/06",
-    "reminder_sent": false
+    "reminder_sent": true
   }
 }
