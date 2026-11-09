@@ -75,6 +75,10 @@
     "end_date": "2026/07/29",
     "reminder_sent": true
   },
+  "7869": {
+    "end_date": "2026/11/13",
+    "reminder_sent": false
+  },
   "8058": {
     "end_date": "2026/11/06",
     "reminder_sent": true
